@@ -1,5 +1,10 @@
 # 该仓库中的代码以webgl编程指南的章节进行划分，都是书中例子的实现
 
+# webgl中涉及的一些概念
+## 着色器
+  - 顶点着色器(Vertex shader)：用来描述顶点特性(位置、颜色等)
+  - 片元着色器(Fragment shader)：进行逐片元处理过程如光照，片元是webgl中的一个术语，可以理解为像素[这段话是书中的描述，暂时不太理解，后续补充]
+
 
 # WebGL: INVALID_OPERATION: useProgram: program not valid
 
