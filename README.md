@@ -14,6 +14,7 @@
   - vertexAttrib3f(方法中的数字可以是1-4中的任意一个)：设置attribute变量的值      (在第二章ClickPoints.html文件中有使用到）
   - getUniformLocation：获取uniform变量的存储位置
   - uniform3f(方法中的数字可以是1-4中的任意一个)：设置uniform变量的值 (第二章ColoredPoints.html文件中有使用到)
+  - uniformMatrix4fv：为一个uniform的矩阵进行赋值
 
 
 # WebGL: INVALID_OPERATION: useProgram: program not valid
