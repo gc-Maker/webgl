@@ -1,3 +1,6 @@
+# 该仓库中的代码以webgl编程指南的章节进行划分，都是书中例子的实现
+
+
 # WebGL: INVALID_OPERATION: useProgram: program not valid
 
 在编程过程中出现以上提示的原因可能是着色器代码错写错误，可以通过gl.getShaderInfoLog(Shader)来获取具体的提示信息。
