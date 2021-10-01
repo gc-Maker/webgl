@@ -5,8 +5,47 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+
 </head>
 <body>
-    
+    <canvas id="canvas" width="400" height="400"></canvas>
+    <script>
+        let canvas = document.getElementById('canvas');
+        let gl = canvas.getContext('webgl');
+        let VSHADER_SOURCE = 
+        'void main(){'+
+        'gl_Position = vec4(0.0, 0.0, 0.0, 1.0);\n' +
+        'gl_PointSize1 = 10.0;\n' +
+        '}'
+        let FSHADER_SOURCE = 
+        'void main(){' +
+        'gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);}'
+
+        // 创建着色器对象
+        let vertex = gl.createShader(gl.VERTEX_SHADER);
+        let fragment = gl.createShader(gl.FRAGMENT_SHADER);
+        // 指定着色器代码
+        gl.shaderSource(vertex, VSHADER_SOURCE);
+        gl.shaderSource(fragment, FSHADER_SOURCE);
+        // 编译着色器
+        gl.compileShader(vertex);
+        gl.compileShader(fragment);
+        // 创建程序对象
+        let programObject = gl.createProgram();
+
+
+        // 为程序对象分配着色器对象
+        gl.attachShader(programObject, vertex);
+        gl.attachShader(programObject, fragment);
+        // 连接程序对象
+        gl.linkProgram(programObject);
+        // 使用程序对象
+        gl.useProgram(programObject);
+
+        gl.clearColor(0.0,1.0,0.0,1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.drawArrays(gl.POINTS, 0,1);
+        // console.log(gl.getShaderInfoLog(vertex));
+    </script>
 </body>
 </html>
