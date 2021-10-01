@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <canvas id="canvas" width="400" height="400"></canvas>
+    <script>
+        let canvas = document.getElementById('canvas');
+        let gl = canvas.getContext('webgl');
+        let VSHADER_SOURCE = 
+        'attribute vec4 a_Position;\n' +
+        'void main(){' +
+        'gl_Position = a_Position;\n' +
+        'gl_PointSize = 10.0;}' 
+
+        let FSHADER_SOURCE =
+        'void main(){'+
+        'gl_FragColor = vec4(1.0,0.0,0.0,1.0);}'
+
+        // 创建着色器
+        let vertex = gl.createShader(gl.VERTEX_SHADER);
+        let fragment = gl.createShader(gl.FRAGMENT_SHADER);
+        // 指定着色器代码
+        gl.shaderSource(vertex, VSHADER_SOURCE);
+        gl.shaderSource(fragment, FSHADER_SOURCE);
+        // 编译着色器代码
+        gl.compileShader(vertex);
+        gl.compileShader(fragment);
+
+        // 创建程序对象
+        let program = gl.createProgram();
+        // 程序对象绑定着色器
+        gl.attachShader(program, vertex);
+        gl.attachShader(program, fragment);
+        // 连接程序对象
+        gl.linkProgram(program);
+        // 使用程序对象
+        gl.useProgram(program);
+
+        // 获取attribute变量的存储位置
+        let position = gl.getAttribLocation(program, 'a_Position');
+        // 设置坐标
+        gl.clearColor(0.0,0.0,0.0,1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // 用于存放之前点击的位置
+        let pointArr = [];
+        canvas.addEventListener('click', (e)=>{
+            let width = e.target.width;
+            let height = e.target.height;
+            // 计算点击的位置
+            let x = (e.offsetX - width/2)/(width/2);
+            let y = -(e.offsetY - height/2)/(height/2);
+            pointArr.push([x,y]);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            pointArr.forEach(item => {
+                gl.vertexAttrib3f(position, item[0],item[1],0.0);
+                gl.drawArrays(gl.POINTS,0,1);
+            })
+        })
+    </script>
+</body>
+</html>
