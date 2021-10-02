@@ -16,6 +16,7 @@
   - uniform3f(方法中的数字可以是1-4中的任意一个)：设置uniform变量的值 (第二章ColoredPoints.html文件中有使用到)
   - uniformMatrix4fv：为一个uniform的矩阵进行赋值
 
+# 在实现第五章中纹理相关的代码时，可能有的图片无法正常显示，图片的尺寸需要是2^M * 2^N，下载了书中例子的图片就能正常显示了。
 
 # WebGL: INVALID_OPERATION: useProgram: program not valid
 
