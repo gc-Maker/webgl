@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <canvas id="canvas" width="600" height="600"></canvas>
+    <script>
+
+        // 可以通过改变以下程序中ANGLE变量的值来生对应旋转角度的三角形
+
+        let canvas = document.getElementById('canvas');
+        let gl = canvas.getContext('webgl');
+        let VSHADER_SOURCE = 
+        'attribute vec4 a_Position;\n'+
+        'uniform mat4 u_Matrix;\n'+
+        'void main(){'+
+        'gl_Position = u_Matrix * a_Position;}'
+        let FSHADER_SOURCE = 
+        'void main(){'+
+        'gl_FragColor = vec4(1.0,0.0,0.0,1.0);}'
+
+        // 创建着色器
+        let vertex = gl.createShader(gl.VERTEX_SHADER); 
+        let fragment = gl.createShader(gl.FRAGMENT_SHADER);
+        // 设置着色器程序
+        gl.shaderSource(vertex, VSHADER_SOURCE);
+        gl.shaderSource(fragment, FSHADER_SOURCE);
+        // 编译着色器代码
+        gl.compileShader(vertex);
+        gl.compileShader(fragment);
+
+        // 创建程序对象
+        let program = gl.createProgram();
+        // 添加着色器
+        gl.attachShader(program, vertex);
+        gl.attachShader(program, fragment);
+        // 连接程序对象
+        gl.linkProgram(program);
+        // 使用程序对象
+        gl.useProgram(program);
+
+        // 三角形三个顶点
+        let vertices = new Float32Array([
+            0.0,0.5,0.5,0.0,0.5,0.5
+        ])
+
+
+        // 旋转矩阵
+        let ANGLE = 45;
+        let radian = Math.PI* ANGLE / 180;
+        let cosB = Math.cos(radian);
+        let sinB = Math.sin(radian);
+        let rotateMatrix = new Float32Array([
+            cosB, sinB, 0.0, 0.0,
+            -sinB, cosB, 0.0, 0.0,
+            0.0, 0.0, 1.0,0.0,
+            0.0, 0.0, 0.0,  1.0
+        ]) 
+        // 获取a_position存储位置
+        let position = gl.getAttribLocation(program, 'a_Position');
+        // 获取u_Matrix存储位置
+        let u_Matrix = gl.getUniformLocation(program, 'u_Matrix');
+        // 设置u_Matrix 的值
+        gl.uniformMatrix4fv(u_Matrix, false, rotateMatrix);
+        // 创建缓冲区对象
+        let vertexBuffer = gl.createBuffer();
+        // 绑定缓冲区
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+        // 向缓冲区对象中添加数据
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+        // 将缓冲区对象分配给a_Position
+        gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0,0);
+        // 连接a_Position变量与分配给它的缓冲区对象
+        gl.enableVertexAttribArray(position);
+        gl.clearColor(0.0,0.0,0.0,1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        // console.log(gl.getShaderInfoLog(vertex));
+    </script>
+</body>
+</html>

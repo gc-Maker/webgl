@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <canvas id="canvas" width="600" height="600"></canvas>
+
+
+    <!-- 引入矩阵变换的库 -->
+    <script src="../cuon-matrix.js"></script>
+    <script>
+        // 实现思路在于先确定原始三角形的位置， 然后动态改变旋转矩阵， 从而达到旋转的效果
+
+        let canvas = document.getElementById('canvas');
+        let gl = canvas.getContext('webgl');
+
+        let VSHADER_SOURCE = 
+        'attribute vec4 a_Position;\n'+
+        'uniform mat4 u_Matrix;\n'+
+        'void main(){' +
+        'gl_Position = u_Matrix * a_Position;}'
+        let FSHADER_SOURCE = 
+        'void main(){'+
+        'gl_FragColor = vec4(1.0,0.0,0.0,1.0);}'
+
+        // 创建着色器
+        let vertex = gl.createShader(gl.VERTEX_SHADER);
+        let fragment = gl.createShader(gl.FRAGMENT_SHADER);
+        // 为着色器设置程序
+        gl.shaderSource(vertex, VSHADER_SOURCE);
+        gl.shaderSource(fragment, FSHADER_SOURCE);
+        // 编译着色器
+        gl.compileShader(vertex);
+        gl.compileShader(fragment);
+
+        // 创建程序对象
+        let program = gl.createProgram();
+        // 绑定着色器
+        gl.attachShader(program, vertex);
+        gl.attachShader(program, fragment);
+        // 连接程序对象
+        gl.linkProgram(program);
+        // 使用着色器对象
+        gl.useProgram(program);
+
+        // 获取u_Matrix存储地址
+        let u_Matrix = gl.getUniformLocation(program, 'u_Matrix');
+        // 获取a_Position存储地址
+        let position = gl.getAttribLocation(program, 'a_Position');
+        let vertices = new Float32Array([
+            0.0,0.5,0.5,0.0,0.5,0.5
+        ])
+        // 创建缓冲区对象
+        let vertexBuffer = gl.createBuffer();
+        // 绑定缓冲区
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+        // 向缓冲区对象中添加数据
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+        // 将缓冲区对象分配给a_Position
+        gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0,0);
+        // 连接a_Position变量与分配给它的缓冲区对象
+        gl.enableVertexAttribArray(position);
+
+        gl.clearColor(0.0,0.0,0.0,1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // 每秒要转动的角度
+        let rotateAngle = 90;
+        let currentAngle = 0;
+        let preTime = Date.now();
+        function caculateAngle() {
+            let nowTime = Date.now();
+            let step = nowTime - preTime;
+            preTime = nowTime;
+            let newAngle = currentAngle + rotateAngle * step / 1000;
+            return newAngle%360
+        }
+
+        // 使用到库cuon-matrix.js
+        // 创建Matrix4对象
+        let xformMatrix = new Matrix4();
+        function createMatrix() {
+            // 设置旋转矩阵 参数分别为旋转角度，和旋转轴
+            xformMatrix.setRotate(currentAngle, 0,0,1);
+            // 将旋转矩阵传输给顶点着色器
+            return xformMatrix.elements;
+        }
+
+        function loop() {
+            currentAngle = caculateAngle();
+            let matrix = createMatrix();
+            // 将旋转矩阵传递给顶点着色器
+            gl.uniformMatrix4fv(u_Matrix, false, matrix);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawArrays(gl.TRIANGLES,0,3);
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>
