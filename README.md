@@ -18,6 +18,13 @@
 
 # 在实现第五章中纹理相关的代码时，可能有的图片无法正常显示，图片的尺寸需要是2^M * 2^N，下载了书中例子的图片就能正常显示了。
 
+# 缓冲区的使用
+  - 创建缓冲区对象(gl.createBuffer())
+  - 绑定缓冲区对象(gl.bindBuffer())：将缓冲区对象绑定到webgl系统中已经存在的target上，target表示缓冲区对象的用途
+  - 数据写入缓冲区对象(gl.bufferData())
+  - 将缓冲区对象分配给一个attribute变量(gl.vertexAttribPointer())
+  - 开启attribute变量(gl.enableVertexAttribArray())：为了使顶点着色器能够访问缓冲区内的数据，需要开启attribute变量。
+
 # WebGL: INVALID_OPERATION: useProgram: program not valid
 
 在编程过程中出现以上提示的原因可能是着色器代码错写错误，可以通过gl.getShaderInfoLog(Shader)来获取具体的提示信息。
