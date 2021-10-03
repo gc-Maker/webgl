@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <canvas id="canvas" width="600" height="600"></canvas>
+    <script>
+        let canvas = document.getElementById('canvas');
+        let gl = canvas.getContext('webgl');
+
+        let VSHADER_SOURCE = 
+        'attribute vec4 a_Position;\n'+
+        'attribute vec2 a_TexCoord;\n'+
+        'varying vec2 u_TexCoord;\n'+
+        'void main(){'+
+        'gl_Position = a_Position;\n'+
+        'u_TexCoord = a_TexCoord;}'
+        let FSHADER_SOURCE = 
+        'precision mediump float;\n' +  
+        'varying vec2 u_TexCoord;\n'+
+        'uniform sampler2D u_Sampler0;\n'+
+        'uniform sampler2D u_Sampler1;\n'+
+        'void main(){'+
+        'gl_FragColor = texture2D(u_Sampler0, u_TexCoord) * texture2D(u_Sampler1, u_TexCoord);}'
+
+        // 创建着色器
+        let vertex = gl.createShader(gl.VERTEX_SHADER);
+        let fragment = gl.createShader(gl.FRAGMENT_SHADER);
+        // 添加着色器程序
+        gl.shaderSource(vertex, VSHADER_SOURCE);
+        gl.shaderSource(fragment, FSHADER_SOURCE);
+        // 编译
+        gl.compileShader(vertex);
+        gl.compileShader(fragment);
+
+        // 创建程序对象
+        let program = gl.createProgram();
+        // 添加着色器
+        gl.attachShader(program, vertex);
+        gl.attachShader(program, fragment);
+        // 连接程序对象
+        gl.linkProgram(program);
+        // 使用程序对象
+        gl.useProgram(program);
+
+        // 获取着色器程序中的变量存储位置
+        let a_Position = gl.getAttribLocation(program, 'a_Position');
+        let a_TexCoord = gl.getAttribLocation(program, 'a_TexCoord');
+        let u_Sampler0 = gl.getUniformLocation(program, 'u_Sampler0');
+        let u_Sampler1 = gl.getUniformLocation(program, 'u_Sampler1');
+        // 显示区域顶点与纹理顶点
+        let vertices = new  Float32Array([
+            -0.5,0.5,0.0,1.0,
+            -0.5,-0.5,0.0,0.0,
+            0.5,0.5,1.0,1.0,
+            0.5,-0.5,1.0,0.0
+        ])
+        let size = vertices.BYTES_PER_ELEMENT;
+
+        // 创建缓冲区对象
+        let buffer = gl.createBuffer();
+        // 将缓冲区对象绑定到target上
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        // 为缓冲区对象添加数据
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+        // 将缓冲区对象分配给attribute变量
+        gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, size*4,0);
+        gl.vertexAttribPointer(a_TexCoord, 2, gl.FLOAT, false, size*4, size*2);
+        // 开启attribute变量
+        gl.enableVertexAttribArray(a_Position);
+        gl.enableVertexAttribArray(a_TexCoord);
+
+        gl.clearColor(0.0,0.0,0.0,1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        let image = new Image();
+        image.addEventListener('load', ()=>{
+            // 创建纹理对象
+            let texture = gl.createTexture();
+            // 图像进行y轴反转
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+            // 激活0号纹理单元
+            gl.activeTexture(gl.TEXTURE0);
+            // 绑定纹理对象
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            // 配置纹理对象参数
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            // 配置纹理图像
+            gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+            // 将0号纹理传递给着色器中的变量
+            gl.uniform1i(u_Sampler0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+        })
+        image.src = './sky.JPG';
+
+        let image1 = new Image();
+        image1.addEventListener('load', ()=>{
+            // 创建纹理对象
+            let texture = gl.createTexture();
+            // 图像进行y轴反转
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+            // 激活1号纹理单元
+            gl.activeTexture(gl.TEXTURE1);
+            // 绑定纹理对象
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            // 配置纹理对象参数
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            // 配置纹理图像
+            gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image1);
+            // 将0号纹理传递给着色器中的变量
+            gl.uniform1i(u_Sampler1, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+        })
+        image1.src = './circle.gif';
+    </script>
+</body>
+</html>
