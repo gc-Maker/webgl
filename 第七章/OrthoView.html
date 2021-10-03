@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <canvas id="canvas" width="600" height="600"></canvas>
+    <div id="box"></div>
+    <script src="../cuon-matrix.js"></script>
+    <script>
+        let canvas = document.getElementById('canvas');
+        let box = document.getElementById('box');
+        let gl = canvas.getContext('webgl');
+        let VSHADER_SOURCE = 
+        'attribute vec4 a_Position;\n'+
+        'attribute vec4 a_Color;\n' +
+        'varying vec4 u_Color;\n'+
+        'uniform mat4 u_ProjMatrix;\n'+
+        'void main(){' +
+        'gl_Position = u_ProjMatrix * a_Position;\n' +
+        'u_Color = a_Color;}'
+        let FSHADER_SOURCE = 
+        'precision mediump float;\n'+
+        'varying vec4 u_Color;\n'+
+        'void main(){'+
+        'gl_FragColor = u_Color;}'
+
+        // 创建着色器
+        let vertex = gl.createShader(gl.VERTEX_SHADER);
+        let fragment = gl.createShader(gl.FRAGMENT_SHADER);
+        // 为着色器添加程序
+        gl.shaderSource(vertex, VSHADER_SOURCE);
+        gl.shaderSource(fragment, FSHADER_SOURCE);
+        //编译着色器
+        gl.compileShader(vertex);
+        gl.compileShader(fragment);
+        // 创建程序对象
+        let program = gl.createProgram();
+        // 添加着色器
+        gl.attachShader(program, vertex);
+        gl.attachShader(program, fragment);
+        //连接程序对象
+        gl.linkProgram(program);
+        // 使用程序对象
+        gl.useProgram(program);
+        let verticesColors = new Float32Array([
+            0.0,0.6,-0.4,0.4,1.0,0.4,
+            -0.5,-0.4,-0.4,0.4,1.0,0.4,
+            0.5,-0.4,-0.4,1.0,0.4,0.4,
+
+            0.5,0.4,-0.2,1.0,0.4,0.4,
+            -0.5,0.4,-0.2,1.0,1.0,0.4,
+            0.0,-0.6,-0.2,1.0,1.0,0.4,
+
+            0.0,0.5,0.0,0.4,0.4,1.0,
+            -0.5,-0.5,0.0,0.4,0.4,1.0,
+            0.5,-0.5,0.0,1.0,0.4,0.4
+        ])
+        let size = verticesColors.BYTES_PER_ELEMENT;
+        //创建缓冲区对象
+        let buffer = gl.createBuffer();
+        // 为缓冲区对象绑定目标
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        // 为缓冲区对象添加数据
+        gl.bufferData(gl.ARRAY_BUFFER, verticesColors, gl.STATIC_DRAW);
+        // 获取a_Position与a_Color的存储地址
+        let a_Position = gl.getAttribLocation(program, 'a_Position');
+        let a_Color = gl.getAttribLocation(program, 'a_Color');
+        // 将缓冲区对象传给a_Position和a_Color
+        gl.vertexAttribPointer(a_Position, 3, gl.FLOAT, false, size*6, 0);
+        gl.vertexAttribPointer(a_Color, 3, gl.FLOAT, false, size*6, size*3);
+        // 开启a_Position和a_Color
+        gl.enableVertexAttribArray(a_Position);
+        gl.enableVertexAttribArray(a_Color);
+
+        // 创建矩阵实例， cuon-matrix.js库中的函数
+        let viewMatrix = new Matrix4();
+        let near = 0.0, far = 0.5;
+        // 设置可视空间
+        viewMatrix.setOrtho(-1,1,-1,1,near, far);
+        let u_ProjMatrix = gl.getUniformLocation(program, 'u_ProjMatrix');
+        gl.uniformMatrix4fv(u_ProjMatrix, false, viewMatrix.elements);
+        document.addEventListener('keydown', (e)=> {
+            switch(e.keyCode) {
+                case 39: near += 0.01;
+                    break;
+                case 37: near -= 0.01;
+                    break;
+                case 38: far += 0.01;
+                    break;
+                case 40: far -= 0.01;
+                    break;
+                default: break;
+            }
+            box.innerHTML = 'near:' + Math.round(near*100)/100 +  ',far:' + Math.round(far*100)/100;
+            // 设置可视空间
+            viewMatrix.setOrtho(-1,1,-1,1,near, far);
+            // 将投影矩阵传给u_ProjMatrix变量
+            gl.uniformMatrix4fv(u_ProjMatrix, false, viewMatrix.elements);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawArrays(gl.TRIANGLES,0,9);
+        })
+        gl.clearColor(0,0,0,1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.drawArrays(gl.TRIANGLES, 0, 9);
+    </script>
+</body>
+</html>
