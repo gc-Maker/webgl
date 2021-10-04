@@ -8,7 +8,7 @@
 ## attribute、uniform、varying
   - attribute：只能用于顶点着色器中，声明顶点数据变量
   - uniform：作用于顶点着色器与片元着色器，声明非顶点数据变量
-  - varying：
+  - varying：顶点着色器与片元着色器中都用该关键字声明的变量会从顶点着色器中自动传入片元着色器
 ## 获取变量以及存储变量使用的函数
   - getAttribLocation：获取attribute变量的存储位置
   - vertexAttrib3f(方法中的数字可以是1-4中的任意一个)：设置attribute变量的值      (在第二章ClickPoints.html文件中有使用到）
