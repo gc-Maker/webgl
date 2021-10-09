@@ -20,6 +20,9 @@
 
 # 三维视图的实现涉及第七章中的三个矩阵：视图矩阵、模型矩阵、投影矩阵
 
+# 第十章中让webgl的图像显示在页面之前
+调用clearColor(0,0,0,0); 将webgl的背景色设置成透明的， 然后让webgl的z-index属性的值大于要显示的页面
+
 # 缓冲区的使用
   - 创建缓冲区对象(gl.createBuffer())
   - 绑定缓冲区对象(gl.bindBuffer())：将缓冲区对象绑定到webgl系统中已经存在的target上，target表示缓冲区对象的用途
