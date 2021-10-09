@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <canvas id="canvas" width="600" height="600"></canvas>
+    <script src="../cuon-matrix.js"></script>
+    <script src="../tools/initShader.js"></script>
+    <script>
+        let canvas = document.getElementById('canvas');
+        let gl = canvas.getContext('webgl');
+        let VSHADER_SOURCE = 
+        'attribute vec4 a_Position;\n' +
+        'uniform mat4 u_MvpMatrix;\n'+
+        'void main(){'+
+        'gl_Position = u_MvpMatrix * a_Position;}\n'
+        let FSHADER_SOURCE = 
+        'precision mediump float;\n' +
+        'void main(){'+
+        'gl_FragColor = vec4(1,0,0,1);}'
+        let program = initShader(gl, VSHADER_SOURCE, FSHADER_SOURCE);
+        
+        let vertices = new Float32Array([
+            0.5, 0.5, 0.5,  -0.5, 0.5, 0.5,  -0.5, -0.5, 0.5,  0.5, -0.5, 0.5,    // 前
+            0.5, 0.5, 0.5,  0.5, 0.5, -0.5,  -0.5, 0.5, -0.5,  -0.5, 0.5, 0.5,    // 上
+            0.5, 0.5, 0.5,  0.5, -0.5, 0.5,  0.5, -0.5, -0.5,  0.5, 0.5, -0.5,    // 右
+            -0.5,-0.5,-0.5, -0.5,-0.5, 0.5,  0.5, -0.5, 0.5,   0.5, -0.5,-0.5,    // 下
+            -0.5,-0.5,-0.5, -0.5,-0.5, 0.5,  -0.5, 0.5, 0.5,   -0.5, 0.5,-0.5,    // 左
+            -0.5,-0.5,-0.5, 0.5, -0.5,-0.5,  0.5, 0.5, -0.5,   -0.5, 0.5, -0.5    // 后
+        ])
+        let indices = new Uint8Array([
+            0, 1, 2,  0, 2, 3,
+            4, 5, 6,  4, 6, 7,
+            8, 9,10,  8,10,11,
+            12,13,14, 12,14,15,
+            16,17,18, 16,18,19,
+            20,21,22, 20,22,23
+        ])
+
+        // 设置缓冲区
+        let indiceBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indiceBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+        setBuffer(gl, vertices, program, 'a_Position', 3);
+
+        // 设置投影、视图、模型矩阵
+        let pvMatrix = new Matrix4();
+        pvMatrix.setPerspective(30, canvas.width/canvas.height, 1,100);
+        pvMatrix.lookAt(0,0,10,0,0,0,0,1,0);
+        // setMatrix(gl, program, pvMatrix);
+        // 定义clickX, clickY用来存储鼠标按下时的位置, flag用来表示是否处于鼠标按下状态
+        let clickX = 0;
+        let clickY = 0;
+        let rotateX = 0;
+        let rotateY = 0;
+        let flag = false;
+        gl.clearColor(1,1,1,1);
+        draw(rotateX, rotateY, gl, program, pvMatrix);
+
+
+        canvas.addEventListener('mousedown', (e)=> {
+            clickX = e.offsetX;
+            clickY = e.offsetY;
+            flag = true;
+        })
+        canvas.addEventListener('mouseup', (e)=> {
+            flag = false;
+        })
+        canvas.addEventListener('mousemove', (e)=> {
+            if(flag == true) {
+                rotateX = ((e.offsetX - clickX) * 360 * 4/ canvas.width) % 360;
+                rotateY = ((e.offsetY - clickY) * 360 * 4/ canvas.height) % 360;
+                console.log('执行了')
+                draw(rotateX, rotateY, gl, program, pvMatrix);
+            }
+        })
+        document.addEventListener('keydown', (e)=> {
+            switch(e.keyCode) {
+                case 37:
+                    rotateX = (rotateX - 3)%360; 
+                    break;
+                case 38:
+                    rotateX = (rotateX + 3)%360;
+                    break;
+                case 39:
+                    rotateY = (rotateY - 3 )%360
+                    break;
+                case 40:
+                    rotateY = (rotateY + 3)%360;
+                    break;
+                default: break;
+            }
+            console.log(rotateX, rotateY)
+            draw(rotateX, rotateY, gl, program, pvMatrix);
+        })
+
+        function draw(rotateX, rotateY, gl, program, pvMatrix) {
+            // 获取顶点着色器中变量u_MvpMatrix的存储位置
+            let u_MvpMatrix = gl.getUniformLocation(program, 'u_MvpMatrix');
+            let mvpMatrix = new Matrix4();
+            mvpMatrix.set(pvMatrix);
+            mvpMatrix.rotate(rotateX, 0,1,0);
+            mvpMatrix.rotate(rotateY, 1,0,0);
+            gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_BYTE, 0);
+        }
+
+        function setMatrix(gl, program, pvMatrix) {
+            let u_MvpMatrix = gl.getUniformLocation(program, 'u_MvpMatrix');
+            gl.uniformMatrix4fv(u_MvpMatrix, false, pvMatrix.elements);
+        }
+
+        function setBuffer(gl, data, program, attribute, num) {
+            let buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+            let position = gl.getAttribLocation(program, attribute);
+            gl.vertexAttribPointer(position, num, gl.FLOAT, false, 0,0);
+            gl.enableVertexAttribArray(position);
+        }
+    </script>
+</body>
+</html>
