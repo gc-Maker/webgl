@@ -40,3 +40,15 @@
 将chapter1/drawPoint.html中的顶点着色器代码中的gl_PointSize改为gl_PointSize1并且将最后一行代码 
 `// console.log(gl.getShaderInfoLog(vertex));`注释取消，在控制台会输出额外的报错信息
 `ERROR: 0:2: 'gl_PointSize1' : undeclared identifier`
+
+
+
+
+
+# TypeScript中条件类型的分发特性
+type types = 'vue' | 'react' | 'angular';
+type Func<T> = T extends types ? () => T : never;
+type Func1 = Func<types>;
+以上写法对应的Func1等价于： type Func1 = (() => "vue") | (() => "react") | (() => "angular")
+如果将Func的写法更改为：type Func<T> = () => T;
+则此时的Func1等价于： () => 'vue' | 'react' | 'angular'
