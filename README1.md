@@ -28,7 +28,7 @@ export default function SelectContainer(props) {
 ```
 
 原因在于 Form.Item 会默认向 Select 组件传递一个 value 属性，并且这个 value 属性是受控的，所以 Select 组件的 value 值会受 Form.Item 控制，而第二种写法中 Select 组件的 value 值是 SelectContainer 组件自己维护的，所以就会有冲突，导致 Select 组件的 value 值错误。
-在封装的场景下 SelectContainer 的正确写法是, 将 Form.Item 传递的属性透传给 Select 组件:
+在封装的场景下 SelectContainer 的正确写法是将 Form.Item 传递的属性透传给 Select 组件:
 
 ```typescript
 const SelectContainer = (props) => {
