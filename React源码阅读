@@ -1,0 +1,66 @@
+## V8 隐藏类
+
+- 在 Fiber 的数据结构中存在如下代码:
+
+```typescript
+if (enableProfilerTimer) {
+  // Note: The following is done to avoid a v8 performance cliff.
+  //
+  // Initializing the fields below to smis and later updating them with
+  // double values will cause Fibers to end up having separate shapes.
+  // This behavior/bug has something to do with Object.preventExtension().
+  // Fortunately this only impacts DEV builds.
+  // Unfortunately it makes React unusably slow for some applications.
+  // To work around this, initialize the fields below with doubles.
+  //
+  // Learn more about this here:
+  // https://github.com/facebook/react/issues/14365
+  // https://bugs.chromium.org/p/v8/issues/detail?id=8538
+  this.actualDuration = Number.NaN;
+  this.actualStartTime = Number.NaN;
+  this.selfBaseDuration = Number.NaN;
+  this.treeBaseDuration = Number.NaN;
+
+  // It's okay to replace the initial doubles with smis after initialization.
+  // This won't trigger the performance cliff mentioned above,
+  // and it simplifies other profiler code (including DevTools).
+  this.actualDuration = 0;
+  this.actualStartTime = -1;
+  this.selfBaseDuration = 0;
+  this.treeBaseDuration = 0;
+}
+```
+
+上述代码的性能优化逻辑在于通过设置初始值为 Number.NaN(浮点数，可兼容整数)，使得后续的赋值不会生成新的隐藏类。
+
+隐藏类性能测试
+
+```typescript
+const arr = [];
+const arr1 = [];
+for (let i = 0; i < 100000; i++) {
+  arr.push({
+    number: i,
+  });
+  arr1.push({
+    number: i,
+  });
+}
+console.time("time1");
+arr1.forEach((item) => {
+  item.number = item.number + 1;
+});
+console.timeEnd("time1"); // time1: 2.0478515625 ms
+
+console.time("time");
+arr.forEach((item) => {
+  item.number = item.number + 0.1;
+});
+console.timeEnd("time"); // time: 52.1640625 ms
+```
+
+- 初始化时所有对象的`number`属性为整数，共享隐藏类`c1 { number: int }`
+- 第一个 forEach 中依然赋值为整数，不触发隐藏类切换，耗时低。
+- 第二个 forEach 中赋值为浮点数，触发隐藏类切换，切换到`c2 { number: double }`，耗时高。
+- 优化方式： 初始化时设置值为浮点数。
+- 如果调换两个 forEach 的顺序，time1 的耗时和 time 的耗时差不多，耗时增加在于触发了隐藏类切换。
