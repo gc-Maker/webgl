@@ -1,0 +1,399 @@
+# 调度器
+
+React 中调度器会维护两个小顶堆任务队列`taskQueue`和`timerQueue`, 两个队列中, `sortIndex`值越小优先级越高, 在队列`taskQueue`中, `sortIndex`是`expirationTime`, 因此越早过期越早执行; 而在队列`timerQueue`中, `sortIndex`是`startTime`, 因此越早开始越早执行.
+
+## 入口函数 unstable_scheduleCallback
+
+- 基于`delay`参数计算任务开始时间`startTime`
+- 根据任务优先级`priorityLevel`匹配对应的超时时间`timeout`
+- 基于`startTime`和`timeout`的累加得到过期时间`expirationTime`
+- 创建新的任务对象`newTask`
+- 基于`startTime`和`currentTime`判断任务是否需要延迟，根据任务是否需要延时执行，进入不同的处理逻辑
+
+```typescript
+function unstable_scheduleCallback(
+  priorityLevel: PriorityLevel,
+  callback: Callback,
+  options?: { delay: number }
+): Task {
+  var currentTime = getCurrentTime();
+
+  // 计算开始时间
+  var startTime;
+  if (typeof options === "object" && options !== null) {
+    var delay = options.delay;
+    if (typeof delay === "number" && delay > 0) {
+      startTime = currentTime + delay;
+    } else {
+      startTime = currentTime;
+    }
+  } else {
+    startTime = currentTime;
+  }
+
+  // 基于任务优先级和开始时间计算超时时间
+  var timeout;
+  switch (priorityLevel) {
+    case ImmediatePriority:
+      timeout = IMMEDIATE_PRIORITY_TIMEOUT;
+      break;
+    case UserBlockingPriority:
+      timeout = USER_BLOCKING_PRIORITY_TIMEOUT;
+      break;
+    case IdlePriority:
+      timeout = IDLE_PRIORITY_TIMEOUT;
+      break;
+    case LowPriority:
+      timeout = LOW_PRIORITY_TIMEOUT;
+      break;
+    case NormalPriority:
+    default:
+      timeout = NORMAL_PRIORITY_TIMEOUT;
+      break;
+  }
+
+  var expirationTime = startTime + timeout;
+
+  // 创建任务对象
+  var newTask: Task = {
+    id: taskIdCounter++,
+    callback,
+    priorityLevel,
+    startTime,
+    expirationTime,
+    sortIndex: -1,
+  };
+
+  // 根据任务是否需要延迟，走不同的逻辑
+  if (startTime > currentTime) {
+    // This is a delayed task.
+    newTask.sortIndex = startTime;
+    push(timerQueue, newTask);
+    if (peek(taskQueue) === null && newTask === peek(timerQueue)) {
+      // All tasks are delayed, and this is the task with the earliest delay.
+      if (isHostTimeoutScheduled) {
+        // Cancel an existing timeout.
+        cancelHostTimeout();
+      } else {
+        isHostTimeoutScheduled = true;
+      }
+      // Schedule a timeout.
+      requestHostTimeout(handleTimeout, startTime - currentTime);
+    }
+  } else {
+    newTask.sortIndex = expirationTime;
+    push(taskQueue, newTask);
+    // Schedule a host callback, if needed. If we're already performing work,
+    // wait until the next time we yield.
+    if (!isHostCallbackScheduled && !isPerformingWork) {
+      isHostCallbackScheduled = true;
+      requestHostCallback(flushWork);
+    }
+  }
+
+  return newTask;
+}
+```
+
+## 非延时逻辑
+
+- 将过期时间`expirationTime`作为任务的`sortIndex`(用于任务优先级排序)
+- 将新创建的任务`newTask`添加到任务队列`taskQueue`中
+- 如果尚未向宿主环境注册回调函数(`!isHostCallbackScheduled`)，且当前没有正在执行的任务(`!isPerformingWork`), 则通过`requestHostCallback`向宿主环境注册回调函数，该回调函数最终会调用`flushWork`
+
+```typescript
+newTask.sortIndex = expirationTime;
+push(taskQueue, newTask);
+// isHostCallbackScheduled 表示是否向宿主环境注册了回调函数
+// isPerformingWork 表示是否正在执行任务队列中的回调
+if (!isHostCallbackScheduled && !isPerformingWork) {
+  isHostCallbackScheduled = true;
+  requestHostCallback(flushWork);
+}
+```
+
+### requestHostCallback 逻辑
+
+- 注册宿主环境回调，将函数`flushWork`赋值给全局变量`scheduledHostCallback`
+- 当消息循环未运行时(`!isMessageLoopRunning`), 通过`schedulePerformWorkUntilDeadline`启动消息循环，并将标识`isMessageLoopRunning`设置为`true`
+
+```typescript
+function requestHostCallback(callback) {
+  scheduledHostCallback = callback;
+  if (!isMessageLoopRunning) {
+    isMessageLoopRunning = true;
+    schedulePerformWorkUntilDeadline();
+  }
+}
+```
+
+- 在浏览器环境中`schedulePerformWorkUntilDeadline`通过以下代码块进行初始化
+- 从以下代码可以知道，当执行`schedulePerformWorkUntilDeadline`方法后，最终会在后续的宏任务周期中执行`performWorkUntilDeadline`方法。
+
+```typescript
+const channel = new MessageChannel();
+const port = channel.port2;
+channel.port1.onmessage = performWorkUntilDeadline;
+schedulePerformWorkUntilDeadline = () => {
+  port.postMessage(null);
+};
+```
+
+### performWorkUntilDeadline 逻辑
+
+- 通过`startTime`和`hasTimeRemaining`判断当前是否有足够的时间执行任务
+- `scheduledHostCallback`方法的执行本质上是在执行`flushWork`方法，通过该方法的返回值判断是否还有需要的任务要执行
+- 如果有剩余任务，则通过`schedulePerformWorkUntilDeadline`方法继续执行队列中的任务
+- 否则结束循环，并将相关标识重置
+
+```typescript
+const performWorkUntilDeadline = () => {
+  if (scheduledHostCallback !== null) {
+    const currentTime = getCurrentTime();
+    // Keep track of the start time so we can measure how long the main thread
+    // has been blocked.
+    startTime = currentTime;
+    const hasTimeRemaining = true;
+
+    let hasMoreWork = true;
+    try {
+      hasMoreWork = scheduledHostCallback(hasTimeRemaining, currentTime);
+    } finally {
+      if (hasMoreWork) {
+        // If there's more work, schedule the next message event at the end
+        // of the preceding one.
+        schedulePerformWorkUntilDeadline();
+      } else {
+        isMessageLoopRunning = false;
+        scheduledHostCallback = null;
+      }
+    }
+  } else {
+    isMessageLoopRunning = false;
+  }
+  needsPaint = false;
+};
+```
+
+## 延时逻辑
+
+- 将开始时间`startTime`作为任务的`sortIndex`(用于任务优先级排序)
+- 将新创建的任务`newTask`添加到延时任务队列`timerQueue`中
+- 通过`requestHostTimeout`调度延时任务
+
+```typescript
+// This is a delayed task.
+newTask.sortIndex = startTime;
+push(timerQueue, newTask);
+if (peek(taskQueue) === null && newTask === peek(timerQueue)) {
+  // All tasks are delayed, and this is the task with the earliest delay.
+  if (isHostTimeoutScheduled) {
+    // Cancel an existing timeout.
+    cancelHostTimeout();
+  } else {
+    isHostTimeoutScheduled = true;
+  }
+  // Schedule a timeout.
+  requestHostTimeout(handleTimeout, startTime - currentTime);
+}
+```
+
+### requestHostTimeout 方法
+
+- 入参 ms 为延时执行时间
+- 在延时 ms 时间后, 执行回调, 这里的回调即方法 `handleTimeout`
+
+```typescript
+function requestHostTimeout(callback, ms: number) {
+  // $FlowFixMe[not-a-function] nullable value
+  taskTimeoutID = localSetTimeout(() => {
+    callback(getCurrentTime());
+  }, ms);
+}
+```
+
+### handleTimeout 方法
+
+- 将已到期的延迟任务从`timerQueue`移到`taskQueue`
+- 如果`taskQueue`不为空, 则通过`requestHostCallback`方法进行调度(走的逻辑同非延时逻辑)
+- 如果`taskQueue`为空，则为最早的延时任务设置新的超时
+
+```typescript
+function handleTimeout(currentTime: number) {
+  isHostTimeoutScheduled = false;
+  advanceTimers(currentTime);
+
+  if (!isHostCallbackScheduled) {
+    if (peek(taskQueue) !== null) {
+      isHostCallbackScheduled = true;
+      requestHostCallback(flushWork);
+    } else {
+      const firstTimer = peek(timerQueue);
+      if (firstTimer !== null) {
+        requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime);
+      }
+    }
+  }
+}
+```
+
+## 公用方法
+
+### push 方法
+
+React 的调度器使用小顶堆（Min-Heap） 来管理任务队列，确保高优先级任务能被优先处理。当新任务加入堆时，push 方法负责将其插入正确位置，具体流程如下：
+
+- 新任务首先添加到堆数组的末尾
+- 第一步操作可能导致小顶堆结构被破坏，调用`siftUp`持续交换当前新加入元素与其父元素(使其满足小顶堆特性)
+- 首先比较`sortIndex`, 该属性根据任务队列类型不同分别被赋值为`expiration`和`startTime`。如果`sortIndex`相等，则比较`id`(React 在内部保证了 id 的递增，即后续的任务的 id 一定大于之前的任务).
+- `id`来源于`taskIdCounter`，这意味着如果页面生命周期极长，`taskIdCounter`可能溢出，从而引发任务队列排序混乱
+
+```typescript
+type Heap<T: Node> = Array<T>;
+
+export function push<T: Node>(heap: Heap<T>, node: T): void {
+  const index = heap.length;
+  heap.push(node);
+  siftUp(heap, node, index);
+}
+
+function siftUp<T: Node>(heap: Heap<T>, node: T, i: number): void {
+  let index = i;
+  while (index > 0) {
+    const parentIndex = (index - 1) >>> 1;
+    const parent = heap[parentIndex];
+    if (compare(parent, node) > 0) {
+      // The parent is larger. Swap positions.
+      heap[parentIndex] = node;
+      heap[index] = parent;
+      index = parentIndex;
+    } else {
+      // The parent is smaller. Exit.
+      return;
+    }
+  }
+}
+
+function compare(a: Node, b: Node) {
+  // Compare sort index first, then task id.
+  const diff = a.sortIndex - b.sortIndex;
+  return diff !== 0 ? diff : a.id - b.id;
+}
+```
+
+### flushWork 方法
+
+- `flushWork`方法会调用`workLoop`方法，该方法会循环执行任务队列中的任务，直到队列为空或者遇到需要让出主线程的任务。
+
+```typescript
+function flushWork(hasTimeRemaining: boolean, initialTime: number) {
+  // We'll need a host callback the next time work is scheduled.
+  isHostCallbackScheduled = false;
+  if (isHostTimeoutScheduled) {
+    // We scheduled a timeout but it's no longer needed. Cancel it.
+    isHostTimeoutScheduled = false;
+    cancelHostTimeout();
+  }
+
+  isPerformingWork = true;
+  const previousPriorityLevel = currentPriorityLevel;
+  try {
+    // No catch in prod code path.
+    return workLoop(hasTimeRemaining, initialTime);
+  } finally {
+    currentTask = null;
+    currentPriorityLevel = previousPriorityLevel;
+    isPerformingWork = false;
+  }
+}
+```
+
+### workLoop 方法
+
+- 时间片用尽并且任务未过期, React 让出浏览器主线程.
+- 否则,从`taskQueue`中取出第一个任务，判断是否需要将 cpu 资源 让给主线程: 若不需要, 则执行任务; 若需要, 则跳出循环(但是依然返回 true，方法`performWorkUntilDeadline`中会依赖这里的返回值判断是否继续任务队列的循环)。
+- 如果第一个任务执行完成后有回调， 则保留其状态，在下一个宏任务中继续执行。
+
+```typescript
+function workLoop(hasTimeRemaining: boolean, initialTime: number) {
+  let currentTime = initialTime;
+  advanceTimers(currentTime);
+  currentTask = peek(taskQueue);
+  while (
+    currentTask !== null &&
+    !(enableSchedulerDebugging && isSchedulerPaused)
+  ) {
+    if (
+      currentTask.expirationTime > currentTime &&
+      (!hasTimeRemaining || shouldYieldToHost())
+    ) {
+      // This currentTask hasn't expired, and we've reached the deadline.
+      break;
+    }
+    // $FlowFixMe[incompatible-use] found when upgrading Flow
+    const callback = currentTask.callback;
+    if (typeof callback === "function") {
+      // $FlowFixMe[incompatible-use] found when upgrading Flow
+      currentTask.callback = null;
+      // $FlowFixMe[incompatible-use] found when upgrading Flow
+      currentPriorityLevel = currentTask.priorityLevel;
+      // $FlowFixMe[incompatible-use] found when upgrading Flow
+      const didUserCallbackTimeout = currentTask.expirationTime <= currentTime;
+      const continuationCallback = callback(didUserCallbackTimeout);
+      currentTime = getCurrentTime();
+      if (typeof continuationCallback === "function") {
+        // If a continuation is returned, immediately yield to the main thread
+        // regardless of how much time is left in the current time slice.
+        // $FlowFixMe[incompatible-use] found when upgrading Flow
+        currentTask.callback = continuationCallback;
+        advanceTimers(currentTime);
+        return true;
+      } else {
+        if (currentTask === peek(taskQueue)) {
+          pop(taskQueue);
+        }
+        advanceTimers(currentTime);
+      }
+    } else {
+      pop(taskQueue);
+    }
+    currentTask = peek(taskQueue);
+  }
+  // Return whether there's additional work
+  if (currentTask !== null) {
+    return true;
+  } else {
+    const firstTimer = peek(timerQueue);
+    if (firstTimer !== null) {
+      requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime);
+    }
+    return false;
+  }
+}
+```
+
+### advanceTimers 方法
+
+- 从延时任务队列`timerQueue`中取出过期的任务，将其转移到任务队列`taskQueue`中, 确保在执行任务之前, 所有已到`startTime`延时的任务都从`timerQueue` 转移到了`taskQueue`(到期的任务不论是否存在时间分片都要被执行)
+
+```typescript
+function advanceTimers(currentTime: number) {
+  // Check for tasks that are no longer delayed and add them to the queue.
+  let timer = peek(timerQueue);
+  while (timer !== null) {
+    if (timer.callback === null) {
+      // Timer was cancelled.
+      pop(timerQueue);
+    } else if (timer.startTime <= currentTime) {
+      // Timer fired. Transfer to the task queue.
+      pop(timerQueue);
+      timer.sortIndex = timer.expirationTime;
+      push(taskQueue, timer);
+    } else {
+      // Remaining timers are pending.
+      return;
+    }
+    timer = peek(timerQueue);
+  }
+}
+```
